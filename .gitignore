@@ -27,3 +27,11 @@ override.tf.json
 
 # Include tfplan files to ignore the plan output of command: terraform plan -out=tfplan
 # example: *tfplan*
+
+# Exclude tfvar files
+**/*.tfvars
+
+# Exclude IntelliJ IDEA project
+*.iml
+.idea
+/infrastructure/terraform.tf
