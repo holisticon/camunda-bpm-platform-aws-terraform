@@ -14,3 +14,6 @@ What's not included:
 - For simplicity reasons only public VPC Subnets are used: You may want to add private Subnets, NAT Gateways and VPC Endpoints in production scenarios
 - Application Auto-Scaling
 - Monitoring
+
+Prerequisites:
+- [Opt-in for new ECS ARN / ID](https://docs.aws.amazon.com/AmazonECS/latest/userguide/ecs-account-settings.html)
