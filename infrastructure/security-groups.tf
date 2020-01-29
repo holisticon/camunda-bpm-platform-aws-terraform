@@ -31,6 +31,31 @@ resource "aws_security_group" "alb" {
 }
 
 # Traffic to the ECS cluster should only come from the ALB
+resource "aws_security_group" "unrestricted" {
+  name        = "${var.environment_name}-unrestricted-security-group"
+  description = "allow all inbound / outbound access"
+  vpc_id      = module.vpc.vpc_id
+
+  ingress {
+    protocol        = "-1"
+    from_port       = 0
+    to_port         = 0
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    protocol    = "-1"
+    from_port   = 0
+    to_port     = 0
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Environment = var.environment_name
+  }
+}
+
+# Traffic to the ECS cluster should only come from the ALB
 resource "aws_security_group" "ecs_task" {
   name        = "${var.environment_name}-ecs-task-security-group"
   description = "allow inbound access from the ALB only"
@@ -40,8 +65,7 @@ resource "aws_security_group" "ecs_task" {
     protocol        = "tcp"
     from_port       = var.app_port
     to_port         = var.app_port
-    cidr_blocks = ["0.0.0.0/0"]
-    //security_groups = [aws_security_group.alb.id]
+    security_groups = [aws_security_group.alb.id]
   }
 
   egress {
