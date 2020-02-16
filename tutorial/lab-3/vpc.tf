@@ -20,6 +20,10 @@ data "aws_security_group" "unrestricted" {
   name = "${var.shared_infrastructure_env}-unrestricted-security-group"
 }
 
+data "aws_security_group" "ecs_task_security_group" {
+  name = "${var.shared_infrastructure_env}-ecs-task-security-group"
+}
+
 output "unrestricted_sg_id" {
   value = data.aws_security_group.unrestricted.id
 }

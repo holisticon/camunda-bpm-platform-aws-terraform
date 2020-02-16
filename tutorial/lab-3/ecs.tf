@@ -2,6 +2,7 @@ resource "aws_ecs_cluster" "camunda_cluster" {
   name = "${var.environment_name}_camunda_cluster"
 
   tags = {
+    Terraform   = "true"
     Environment = var.environment_name
   }
 }
@@ -15,12 +16,30 @@ data "aws_lb_listener" "selected443" {
   port              = 443
 }
 
+
+resource "aws_alb_target_group" "camunda" {
+  name        = "${var.environment_name}-camunda-target-group"
+  port        = 8080
+  protocol    = "HTTP"
+  vpc_id      = data.aws_vpc.selected.id
+  target_type = "ip"
+  stickiness {
+    type = "lb_cookie"
+  }
+
+  health_check {
+    path                = "/"
+    matcher             = "200-299"
+  }
+}
+
+
 resource "aws_alb_listener_rule" "camunda" {
   listener_arn = data.aws_lb_listener.selected443.arn
 
   action {
     type             = "forward"
-    target_group_arn = module.camunda_ecs_fargate.target_group_arn
+    target_group_arn = aws_alb_target_group.camunda.arn
   }
 
   condition {
@@ -30,53 +49,88 @@ resource "aws_alb_listener_rule" "camunda" {
   }
 }
 
-locals {
-  task_container_port = 8080
-}
+resource "aws_ecs_service" "camunda_service" {
+  name                              = "${var.environment_name}-camunda_service"
+  cluster                           = aws_ecs_cluster.camunda_cluster.id
+  task_definition                   = module.ecs-fargate-task-definition.aws_ecs_task_definition_td_arn
+  desired_count                     = 3
+  launch_type                       = "FARGATE"
+  health_check_grace_period_seconds = 60
 
-module "camunda_ecs_fargate" {
-  source  = "telia-oss/ecs-fargate/aws"
-  version = "3.3.0"
-
-  name_prefix            = "${var.environment_name}-camunda"
-  vpc_id                 = data.aws_vpc.selected.id
-  private_subnet_ids     = data.aws_subnet_ids.selected.ids
-  lb_arn                 = data.aws_alb.selected.arn
-  cluster_id             = aws_ecs_cluster.camunda_cluster.id
-  task_container_image   = "camunda/camunda-bpm-platform:latest"
-  task_definition_cpu    = 1024
-  task_definition_memory = 2048
-  desired_count          = 1
-  // public ip is needed for default vpc, default is false
-  task_container_assign_public_ip = true
-
-  // port, default protocol is HTTP
-  task_container_port = local.task_container_port
-
-  task_container_environment = {
-    DB_DRIVER   = "com.mysql.jdbc.Driver"
-    DB_URL      = "jdbc:mysql://${aws_rds_cluster.db.endpoint}:${aws_rds_cluster.db.port}/${aws_rds_cluster.db.database_name}"
-    DB_USERNAME = aws_rds_cluster.db.master_username
-    DB_PASSWORD = aws_rds_cluster.db.master_password
+  load_balancer {
+    target_group_arn = aws_alb_target_group.camunda.arn
+    container_name   = "camunda-demo"
+    container_port   = 8080
   }
 
-  health_check = {
-    port = "traffic-port"
-    path = "/"
+  network_configuration {
+    security_groups  = [data.aws_security_group.ecs_task_security_group.id]
+    subnets          = data.aws_subnet_ids.selected.ids
+    assign_public_ip = true
   }
+
+  //  lifecycle {
+  //    ignore_changes = ["desired_count"]
+  //  }
 
   tags = {
+    Terraform   = "true"
+    Environment = var.environment_name
+  }
+}
+/*
+data "aws_iam_role" "ecs_task_execution_role" {
+  name = "${local.shared_infrastructure_env}-ecs-task-execution-role"
+}*/
+
+resource "aws_cloudwatch_log_group" "camunda_demo" {
+  name              = "${var.environment_name}-camunda"
+  retention_in_days = 1
+
+  tags = {
+    Terraform   = "true"
     Environment = var.environment_name
   }
 }
 
-resource "aws_security_group_rule" "ingress_service" {
-  security_group_id = module.camunda_ecs_fargate.service_sg_id
-  type              = "ingress"
-  protocol          = "tcp"
-  from_port         = local.task_container_port
-  to_port           = local.task_container_port
-  cidr_blocks       = ["0.0.0.0/0"]
-  # replace cidR_blocks with following line to restrict access to ECS tasks only
-  # source_security_group_id = data.aws_security_group.alb.id
+data "aws_region" "current" {}
+
+module "ecs-fargate-task-definition" {
+  source           = "cn-terraform/ecs-fargate-task-definition/aws"
+  version          = "1.0.7"
+  container_image  = "camunda/camunda-bpm-platform:latest"
+  container_name   = "camunda-demo"
+  container_port   = "8080"
+  container_cpu    = 1024
+  container_memory = 2048
+  name_preffix     = var.environment_name
+  profile          = "default"
+  region           = data.aws_region.current.name
+  environment = [
+    {
+      name  = "DB_DRIVER",
+      value = "com.mysql.jdbc.Driver"
+    },
+    {
+      name  = "DB_URL",
+      value = "jdbc:mysql://${aws_rds_cluster.db.endpoint}:${aws_rds_cluster.db.port}/${aws_rds_cluster.db.database_name}"
+    },
+    {
+      name  = "DB_USERNAME",
+      value = aws_rds_cluster.db.master_username
+    },
+    {
+      name  = "DB_PASSWORD",
+      value = aws_rds_cluster.db.master_password
+    }
+  ]
+  log_configuration = {
+    logDriver = "awslogs"
+    options = {
+      awslogs-region        = data.aws_region.current.name
+      awslogs-group         = aws_cloudwatch_log_group.camunda_demo.name
+      awslogs-stream-prefix = "camunda"
+    }
+    secretOptions = []
+  }
 }
