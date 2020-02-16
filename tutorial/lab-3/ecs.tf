@@ -1,5 +1,5 @@
 resource "aws_ecs_cluster" "camunda_cluster" {
-  name = "${var.environment_name}_camunda_cluster"
+  name = "${var.environment_name}-camunda-cluster"
 
   tags = {
     Environment = var.environment_name
@@ -15,6 +15,7 @@ data "aws_lb_listener" "selected443" {
   port              = 443
 }
 
+/*
 resource "aws_alb_listener_rule" "camunda" {
   listener_arn = data.aws_lb_listener.selected443.arn
 
@@ -79,4 +80,66 @@ resource "aws_security_group_rule" "ingress_service" {
   cidr_blocks       = ["0.0.0.0/0"]
   # replace cidR_blocks with following line to restrict access to ECS tasks only
   # source_security_group_id = data.aws_security_group.alb.id
+}
+*/
+
+data "aws_route53_zone" "zone" {
+  name = "${var.domain_name}."
+}
+
+module "ecs-airg" {
+  source = "github.com/holisticon/terraform-aws-airship-ecs-service.git?ref=terraform12"
+  name = "${var.environment_name}-camunda"
+  ecs_cluster_id = aws_ecs_cluster.camunda_cluster.id
+
+  region = "eu-west-1"
+
+
+  fargate_enabled = true
+
+  awsvpc_enabled            = true
+  awsvpc_subnets            = [data.aws_subnet_ids.selected.ids]
+  awsvpc_security_group_ids = [data.aws_security_group.unrestricted.id]
+
+  load_balancing_type = "application"
+
+    # The ARN of the ALB, when left-out the service, 
+  load_balancing_properties_lb_arn = data.aws_alb.selected.arn
+
+  # http listener ARN
+  load_balancing_properties_lb_listener_arn_https = data.aws_lb_listener.selected443.arn
+
+  # The VPC_ID the target_group is being created in
+  load_balancing_properties_lb_vpc_id = data.aws_vpc.selected.id
+
+  # The route53 zone for which we create a subdomain
+  load_balancing_properties_route53_zone_id = "${data.aws_route53_zone.zone.zone_id}"
+
+  # health_uri defines which health-check uri the target 
+  # group needs to check on for health_check, defaults to /ping
+  load_balancing_properties_health_uri = "/"
+
+  load_balancing_properties_https_enabled = true
+
+  container_cpu = 1024
+  container_memory = 2048
+  container_port   = 8080
+  bootstrap_container_image = "camunda/camunda-bpm-platform:latest"
+
+  # force_bootstrap_container_image to true will 
+  # force the deployment to use var.bootstrap_container_image as container_image
+  # if container_image is already deployed, no actual service update will happen
+  # force_bootstrap_container_image = false
+
+  # Initial ENV Variables for the ECS Task definition
+  container_envvars = {
+    ENV_VARIABLE = "SOMETHING"
+  }
+
+  # capacity_properties defines the size in task for the ECS Service.
+  # Without scaling enabled, desired_capacity is the only necessary property
+  # defaults to 2
+  # With scaling enabled, desired_min_capacity and desired_max_capacity 
+  # define the lower and upper boundary in task size
+  capacity_properties_desired_capacity = "1"
 }
