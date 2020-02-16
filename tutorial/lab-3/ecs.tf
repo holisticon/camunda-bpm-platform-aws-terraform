@@ -77,4 +77,6 @@ resource "aws_security_group_rule" "ingress_service" {
   from_port         = local.task_container_port
   to_port           = local.task_container_port
   cidr_blocks       = ["0.0.0.0/0"]
+  # replace cidR_blocks with following line to restrict access to ECS tasks only
+  # source_security_group_id = data.aws_security_group.alb.id
 }

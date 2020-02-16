@@ -23,3 +23,7 @@ data "aws_security_group" "unrestricted" {
 output "unrestricted_sg_id" {
   value = data.aws_security_group.unrestricted.id
 }
+
+data "aws_security_group" "alb" {
+  name = "${var.shared_infrastructure_env}-load-balancer-security-group"
+}
