@@ -35,3 +35,4 @@ override.tf.json
 *.iml
 .idea
 /infrastructure/terraform.tf
+vscodeserver/terraform.tf
