@@ -1,4 +1,4 @@
-Provision 
+Terraform Provisioning of 
 
 - [Camunda-BPM-Platform Docker Container](https://github.com/camunda/docker-camunda-bpm-platform)
 on AWS Elastic Container Service (ECS) on AWS Fargate
