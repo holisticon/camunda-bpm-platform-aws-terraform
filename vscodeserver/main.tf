@@ -58,19 +58,18 @@ resource "aws_alb_listener_rule" "forward" {
 }
 
 resource "aws_ecs_cluster" "vscode" {
-  for_each = var.environment_name
-  name     = "${each.value}-vscode_cluster"
+  name     = "vscode_cluster"
 
   tags = {
     Terraform   = "true"
-    Environment = "${each.value}-vscode"
+    Environment = "vscode"
   }
 }
 
 resource "aws_ecs_service" "vscode" {
   for_each                          = var.environment_name
   name                              = "${each.value}-vscode"
-  cluster                           = aws_ecs_cluster.vscode[each.value].id
+  cluster                           = aws_ecs_cluster.vscode.id
   task_definition                   = aws_ecs_task_definition.vscodeserver.arn
   desired_count                     = 1
   launch_type                       = "FARGATE"
