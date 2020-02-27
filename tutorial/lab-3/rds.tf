@@ -12,7 +12,6 @@ resource "aws_rds_cluster" "db" {
 
   apply_immediately = true
   skip_final_snapshot = true
-  final_snapshot_identifier = "${var.environment_name}-final-snapshot"
 
   tags = {
     Environment = var.environment_name
